@@ -7,13 +7,37 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
+//configure migration - needs to be done in first view controller to launch
+//let config = Realm.Configuration(
+//    // Set the new schema version. This must be greater than the previously used
+//    // version (if you've never set a schema version before, the version is 0).
+//    schemaVersion: 1,
+//
+//    // Set the block which will be called automatically when opening a Realm with
+//    // a schema version lower than the one set above
+//    migrationBlock: { migration, oldSchemaVersion in
+//        // We haven’t migrated anything yet, so oldSchemaVersion == 0
+//        if (oldSchemaVersion < 1) {
+//            // Nothing to do!
+//            // Realm will automatically detect new properties and removed properties
+//            // And will update the schema on disk automatically
+//        } else {
+//            //do nothing
+//        }
+//})
+
 
 class CategoryViewController: UITableViewController {
 
-    var categories = [Category]()
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Categories.plist")
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+  let realm = try! Realm()
+    
+    //use following line of code if we need o do a migration
+    //lazy var realm = try! Realm(configuration: config)
+    
+    //print(Realm.Configuration.defaultConfiguration.fileURL)
+    
+    var categories: Results<Category>?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -23,16 +47,14 @@ class CategoryViewController: UITableViewController {
 
     // MARK: - Table view data source
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        
         let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        
-        let category = categories[indexPath.row]
-        cell.textLabel?.text  = category.name
-        
+        cell.textLabel?.text  = categories?[indexPath.row].name ?? "No categories added yet"
         return cell
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return categories.count
+        return categories?.count ?? 1
     }
 
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
@@ -47,10 +69,9 @@ class CategoryViewController: UITableViewController {
         let action = UIAlertAction(title: "Add", style: .default) { (action) in
             //what will happen when user clicks add item on alert
             
-            let newCategory = Category(context: self.context)
+            let newCategory = Category()
             newCategory.name = textField.text!
-            self.categories.append(newCategory)
-            self.saveCategories()
+            self.save(category:newCategory)
         }
         
         alert.addAction(action)
@@ -65,24 +86,22 @@ class CategoryViewController: UITableViewController {
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         let destinationVC = segue.destination as! TodoListViewController
         if let indexPath = tableView.indexPathForSelectedRow {
-            destinationVC.selectedCategory = categories[indexPath.row]
+            destinationVC.selectedCategory = categories?[indexPath.row]
         }
     }
     
     
     //MARK: Data Manipulation Methods
     func loadCategories() {
-        do {
-        categories = try context.fetch(Category.fetchRequest())
-        } catch {
-            print ("Error fetching data from context \(error)")
-        }
+       categories  = realm.objects(Category.self)
         tableView.reloadData()
     }
     
-    func saveCategories() {
+    func save(category:Category) {
         do {
-            try context.save()
+            try realm.write {
+                realm.add(category)
+            }
         } catch {
             print ("Error saving data \(error)")
         }
